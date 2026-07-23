@@ -1,10 +1,11 @@
 import {scrypt, randomBytes, createHmac} from 'node:crypto'
 import {db, eq} from '@repo/database'
+import * as JWT from 'jsonwebtoken'
 import { usersTable } from '@repo/database/models/user'
-import {type  CreateUserWithEmailAndPasswordInputType, createUserWithEmailAndPasswordInput} from './model'
-import { nullable } from 'zod'
-import { threadId } from 'node:worker_threads'
+import {type  CreateUserWithEmailAndPasswordInputType, GenerateUserTokenPayloadType, createUserWithEmailAndPasswordInput, generateUserTokenPayload} from './model'
+import {env} from '../env'
 import { id } from 'zod/v4/locales'
+
 
 class UserService {
 
@@ -12,6 +13,12 @@ class UserService {
       const result =  await db.select().from(usersTable).where(eq(usersTable.email, email))
       if(!result || result.length == 0) return null;
       return result[0]    
+    }
+
+    private async generateUserToken(payload: GenerateUserTokenPayloadType){
+        const {id} = await generateUserTokenPayload.parseAsync(payload)
+        const token = JWT.sign({id}, env.JWT_SECRET)
+        return {token};         
     }
 
     public async createUserWithEmailAndPassword(payload: CreateUserWithEmailAndPasswordInputType) {
@@ -35,8 +42,12 @@ class UserService {
 
         if (!userInsertResult || userInsertResult.length == 0 || !userInsertResult[0]?.id) throw new Error('Failed to Create User')
 
+            const userId = userInsertResult[0].id
+            const {token} = await this.generateUserToken({ id: userId})
+
         return {
-            id: userInsertResult[0].id
+            id: userId,
+            token
 
         }
     }
